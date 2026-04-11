@@ -5,7 +5,7 @@ from datetime import datetime
 import httpx
 
 TELEGRAM_TOKEN = "8623634734:AAGAa66_juFehSytTewhvp5c21cdWuCe6cM"
-APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbw5sCe6c3jHY-aCe19ayLH7w6nCE9mBe6d0_Ku47njRGSSq_9WO4o2p2p_TvssZAAV1yg/exec"
+APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxPItwcgtmIqynujlRaTLmwShLi9iFzDdzJLtv27QrKRzxAbxkRXEPdsiurqMYIuRstbQ/exec"
 ALLOWED_IDS = [934460174, 5212989843]
 
 logging.basicConfig(level=logging.INFO)
