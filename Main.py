@@ -5,10 +5,7 @@ from datetime import datetime
 import httpx
 
 TELEGRAM_TOKEN = "8623634734:AAH4SvIMsKnVsWQK6fE-vebQMscCgJa3ca4"
-
-
 APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzEKI8ILurAWAJLIpPDYM5VqF2V1wgC5PJQBpz_MtEMEm-H1yQHH16qSU-4YXVxDBrcYg/exec"
-
 ALLOWED_IDS = [934460174, 5212989843]
 
 logging.basicConfig(level=logging.INFO)
@@ -26,8 +23,9 @@ async def send(chat_id, text):
 
 async def save(rows):
     try:
-        async with httpx.AsyncClient(timeout=30) as c:
+        async with httpx.AsyncClient(timeout=30, follow_redirects=True) as c:
             r = await c.post(APPS_SCRIPT_URL, json={"rows": rows})
+            log.info("Sheets: %s | %s", r.status_code, r.text[:100])
             return "ok" in r.text.lower()
     except Exception as e:
         log.error("Save error: %s", e)
