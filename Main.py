@@ -7,7 +7,7 @@ import httpx
 TELEGRAM_TOKEN = "8623634734:AAE2NnxPaT6yRxMIqXl7qY3_xoCJQo8M7Nk"
 
 APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxQhPUKL_vcHpxX2Z7NAtAElkne3iEKuyt7a4JSzVDeWxTcqa_O0wVJ1yP7Vqe8-ndePQ/exec"
-"
+
 ALLOWED_IDS = [934460174, 5212989843]
 
 logging.basicConfig(level=logging.INFO)
