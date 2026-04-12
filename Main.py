@@ -4,9 +4,9 @@ import asyncio
 from datetime import datetime
 import httpx
 
-# --- الإعدادات النهائية ---
+# --- الإعدادات النهائية (رابطك الأخير) ---
 TELEGRAM_TOKEN = "8623634734:AAH4SvIMsKnVsWQK6fE-vebQMscCgJa3ca4"
-APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxpUAkSWNv94E0Woow6omGHi8MeUP4cGw_uLhLPuD9y44DpvKDqRx-xmpszsFkRO52eSg/exec"
+APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzEWmq1zQLlhzhicODnERhf_PnQFa_7acG_7EJawyexoFYfd6BgGdrU1TWAnejIesWBmg/exec"
 ALLOWED_IDS = [934460174, 5212989843]
 
 logging.basicConfig(level=logging.INFO)
@@ -30,7 +30,7 @@ async def save(rows):
             r = await c.post(APPS_SCRIPT_URL, json={"rows": rows})
             return "ok" in r.text.lower()
     except Exception as e:
-        log.error(f"Error: {e}")
+        log.error(f"Save error: {e}")
         return False
 
 def extract_date(text):
@@ -63,27 +63,33 @@ async def handle(update):
 
     items = parse(text)
     if not items: return
-    date = extract_date(text); time_str = datetime.now().strftime("%H:%M")
-    month = date[3:] if len(date) > 5 else datetime.now().strftime("%m/%Y")
+    
+    date = extract_date(text)
+    time_str = datetime.now().strftime("%H:%M")
+    
+    # تنسيق الشهر/السنة للعمود الأخير
+    d_parts = date.split('/')
+    m_year = f"{d_parts[1]}/{d_parts[2]}" if len(d_parts) == 3 else datetime.now().strftime("%m/%Y")
 
-    rows = [[date, time_str, uname, i["name"], "إيراد" if i["type"]=="income" else "مصروف", i["amount"], month] for i in items]
+    # الترتيب: [التاريخ، الوقت، المستخدم، المادة، النوع، المبلغ، الشهر]
+    rows = [[date, time_str, uname, i["name"], "إيراد" if i["type"]=="income" else "مصروف", i["amount"], m_year] for i in items]
+    
     ok = await save(rows)
-
     inc_total = sum(i["amount"] for i in items if i["type"]=="income")
     exp_total = sum(i["amount"] for i in items if i["type"]=="expense")
 
     reply = f"📅 <b>{date}</b> — {uname}\n"
-    reply += f"\n{'✅ تم الحفظ في الشيت' if ok else '❌ فشل في الوصول للشيت'}\n"
+    reply += f"\n{'✅ تم الحفظ بنجاح' if ok else '❌ فشل في الوصول للشيت'}\n"
     reply += "────────────────────\n"
     for i in items:
         icon = "💰" if i["type"] == "income" else "💸"
         reply += f"{icon} {i['name']}: <b>{i['amount']:,} DH</b>\n"
     reply += "────────────────────\n"
-    reply += f"صافي اليوم: <b>{inc_total - exp_total:,} DH</b>"
+    reply += f"صافي الربح: <b>{inc_total - exp_total:,} DH</b>"
     await send(chat_id, reply)
 
 async def main():
-    log.info("🚀 Active...")
+    log.info("🚀 Bot is live...")
     await tg("deleteWebhook", drop_pending_updates=True)
     offset = 0
     while True:
