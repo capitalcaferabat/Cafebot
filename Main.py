@@ -4,6 +4,7 @@ import asyncio
 from datetime import datetime
 import httpx
 
+# --- الإعدادات الأساسية ---
 TELEGRAM_TOKEN = "8623634734:AAH4SvIMsKnVsWQK6fE-vebQMscCgJa3ca4"
 APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzEKI8ILurAWAJLIpPDYM5VqF2V1wgC5PJQBpz_MtEMEm-H1yQHH16qSU-4YXVxDBrcYg/exec"
 ALLOWED_IDS = [934460174, 5212989843]
@@ -11,24 +12,29 @@ ALLOWED_IDS = [934460174, 5212989843]
 logging.basicConfig(level=logging.INFO)
 log = logging.getLogger(__name__)
 TG = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}"
-INCOME_WORDS = ["recette","مبيعات","بيع","إيراد","ايراد","دخل","كاش","مداخيل","income"]
+INCOME_WORDS = ["recette", "مبيعات", "بيع", "إيراد", "ايراد", "دخل", "كاش", "مداخيل", "income"]
 
 async def tg(method, **kwargs):
-    async with httpx.AsyncClient(timeout=20) as c:
-        r = await c.post(f"{TG}/{method}", json=kwargs)
-        return r.json()
+    try:
+        async with httpx.AsyncClient(timeout=20) as c:
+            r = await c.post(f"{TG}/{method}", json=kwargs)
+            return r.json()
+    except Exception as e:
+        log.error(f"Telegram API Error ({method}): {e}")
+        return {"ok": False}
 
 async def send(chat_id, text):
     await tg("sendMessage", chat_id=chat_id, text=text, parse_mode="HTML")
 
 async def save(rows):
     try:
+        # استخدام follow_redirects ضروري جداً مع Google Apps Script
         async with httpx.AsyncClient(timeout=30, follow_redirects=True) as c:
             r = await c.post(APPS_SCRIPT_URL, json={"rows": rows})
-            log.info("Sheets: %s | %s", r.status_code, r.text[:100])
+            log.info(f"Sheets Response: {r.status_code} | {r.text[:50]}")
             return "ok" in r.text.lower()
     except Exception as e:
-        log.error("Save error: %s", e)
+        log.error(f"Save error to Google Sheets: {e}")
         return False
 
 def extract_date(text):
@@ -46,6 +52,8 @@ def parse(text):
         line = re.sub(r'(?i)dh', '', line)
         line = re.sub(r',', '', line)
         line = line.strip()
+        
+        # محاولة استخراج الاسم والمبلغ
         m = re.match(r'^([^\d]+?)(\d+(?:\.\d+)?)\s*$', line)
         if not m:
             m2 = re.match(r'^(\d+(?:\.\d+)?)\s+([^\d]+)$', line)
@@ -55,44 +63,33 @@ def parse(text):
                 continue
         else:
             name, amount = m.group(1).strip(), float(m.group(2))
+            
         if not name or amount <= 0:
             continue
+            
         itype = "income" if any(w in name.lower() for w in INCOME_WORDS) else "expense"
         items.append({"name": name, "amount": amount, "type": itype})
     return items
 
 async def handle(update):
     msg = update.get("message")
-    if not msg:
+    if not msg or "text" not in msg:
         return
+        
     chat_id = msg["chat"]["id"]
     user_id = msg["from"]["id"]
-    text = msg.get("text", "").strip()
-    uname = (msg["from"].get("first_name","") + " " + msg["from"].get("last_name","")).strip()
+    text = msg["text"].strip()
+    
+    uname = (msg["from"].get("first_name", "") + " " + msg["from"].get("last_name", "")).strip()
     if not uname:
         uname = msg["from"].get("username", "مجهول")
 
     if ALLOWED_IDS and user_id not in ALLOWED_IDS:
+        log.warning(f"Unauthorized access attempt by ID: {user_id}")
         return
 
     if text == "/start":
-        await send(chat_id,
-            "☕ <b>محاسب المقهى</b>\n\n"
-            "أرسل بياناتك هكذا:\n"
-            "<code>Le 01/04/2026\n"
-            "غاز 105dh\n"
-            "الحليب 29dh\n"
-            "Recette 6678dh</code>"
-        )
-        return
-
-    if text == "/help":
-        await send(chat_id,
-            "📖 <b>طريقة الإرسال:</b>\n\n"
-            "<code>Le 01/04/2026\nاسم المنتج + المبلغ\nRecette + المبلغ</code>\n\n"
-            "• Recette / ايراد = إيرادات ✅\n"
-            "• كل شيء آخر = مصاريف"
-        )
+        await send(chat_id, "☕ <b>Capital Cafe - بوت المحاسبة</b>\n\nأرسل بياناتك وسأقوم بحفظها تلقائياً.")
         return
 
     items = parse(text)
@@ -103,10 +100,6 @@ async def handle(update):
     time_str = datetime.now().strftime("%H:%M")
     month = date[3:] if len(date) > 5 else datetime.now().strftime("%m/%Y")
 
-    inc = sum(i["amount"] for i in items if i["type"]=="income")
-    exp = sum(i["amount"] for i in items if i["type"]=="expense")
-    profit = inc - exp
-
     rows = []
     for i in items:
         rows.append([date, time_str, uname, i["name"],
@@ -115,37 +108,43 @@ async def handle(update):
 
     ok = await save(rows)
 
-    inc_lines = "\n".join(f"  💰 {i['name']}: <b>{i['amount']:,.0f}</b>" for i in items if i["type"]=="income")
-    exp_lines = "\n".join(f"  💸 {i['name']}: <b>{i['amount']:,.0f}</b>" for i in items if i["type"]=="expense")
+    # تجهيز رسالة الرد
+    inc = sum(i["amount"] for i in items if i["type"]=="income")
+    exp = sum(i["amount"] for i in items if i["type"]=="expense")
+    profit = inc - exp
 
     reply = f"📅 <b>{date}</b> — {uname}\n"
-    if inc_lines:
-        reply += f"\n<b>الإيرادات:</b>\n{inc_lines}\n"
-    if exp_lines:
-        reply += f"\n<b>المصاريف:</b>\n{exp_lines}\n"
-    reply += f"\n{'─'*20}\n"
-    if inc: reply += f"↑ الإيرادات: <b>{inc:,.0f}</b>\n"
-    if exp: reply += f"↓ المصاريف: <b>{exp:,.0f}</b>\n"
-    if inc and exp: reply += f"{'✅' if profit>=0 else '⚠️'} الربح: <b>{profit:,.0f}</b>\n"
-    reply += f"\n{'✅ تم الحفظ' if ok else '❌ خطأ في الحفظ'}"
+    reply += f"\n{'✅ تم الحفظ بنجاح' if ok else '❌ فشل الحفظ في الجدول'}\n"
+    reply += f"{'─'*20}\n"
+    if inc: reply += f"↑ الإيرادات: <b>{inc:,.2f} DH</b>\n"
+    if exp: reply += f"↓ المصاريف: <b>{exp:,.2f} DH</b>\n"
+    if inc and exp: reply += f"{'✅' if profit>=0 else '⚠️'} صافي اليوم: <b>{profit:,.2f} DH</b>"
 
     await send(chat_id, reply)
 
 async def main():
-    log.info("☕ البوت يعمل...")
+    log.info("☕ البوت انطلق الآن...")
+    
+    # خطوة تنظيف الروابط القديمة لضمان عدم حدوث تضارب (Conflict)
+    await tg("deleteWebhook", drop_pending_updates=True)
+    
     offset = 0
     while True:
         try:
             data = await tg("getUpdates", offset=offset, timeout=30)
-            for u in data.get("result", []):
-                offset = u["update_id"] + 1
-                try:
-                    await handle(u)
-                except Exception as e:
-                    log.error(e)
+            if data.get("ok"):
+                for u in data.get("result", []):
+                    offset = u["update_id"] + 1
+                    asyncio.create_task(handle(u))
+            else:
+                log.error(f"Error fetching updates: {data}")
+                await asyncio.sleep(5)
         except Exception as e:
-            log.error(e)
+            log.error(f"Main loop error: {e}")
             await asyncio.sleep(5)
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    try:
+        asyncio.run(main())
+    except KeyboardInterrupt:
+        pass
