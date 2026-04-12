@@ -4,9 +4,9 @@ import asyncio
 from datetime import datetime
 import httpx
 
-# --- الإعدادات بالرابط الأخير المصلح ---
+# --- الإعدادات النهائية ---
 TELEGRAM_TOKEN = "8623634734:AAH4SvIMsKnVsWQK6fE-vebQMscCgJa3ca4"
-APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxOIEuFAhNuPyNbJ7CS568PJLjKYpN9z2t7fPTOcv6-VgnAQXiKm_NSHzcTvWX44mLGaA/exec"
+APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxpUAkSWNv94E0Woow6omGHi8MeUP4cGw_uLhLPuD9y44DpvKDqRx-xmpszsFkRO52eSg/exec"
 ALLOWED_IDS = [934460174, 5212989843]
 
 logging.basicConfig(level=logging.INFO)
@@ -28,10 +28,9 @@ async def save(rows):
     try:
         async with httpx.AsyncClient(timeout=30, follow_redirects=True) as c:
             r = await c.post(APPS_SCRIPT_URL, json={"rows": rows})
-            log.info(f"Response: {r.text}")
             return "ok" in r.text.lower()
     except Exception as e:
-        log.error(f"Save error: {e}")
+        log.error(f"Error: {e}")
         return False
 
 def extract_date(text):
@@ -74,7 +73,7 @@ async def handle(update):
     exp_total = sum(i["amount"] for i in items if i["type"]=="expense")
 
     reply = f"📅 <b>{date}</b> — {uname}\n"
-    reply += f"\n{'✅ تم تسجيل البيانات في الجدول' if ok else '❌ تم الإرسال لكن الجدول لم يستجب'}\n"
+    reply += f"\n{'✅ تم الحفظ في الشيت' if ok else '❌ فشل في الوصول للشيت'}\n"
     reply += "────────────────────\n"
     for i in items:
         icon = "💰" if i["type"] == "income" else "💸"
@@ -84,7 +83,7 @@ async def handle(update):
     await send(chat_id, reply)
 
 async def main():
-    log.info("🚀 Capital Cafe Bot Active...")
+    log.info("🚀 Active...")
     await tg("deleteWebhook", drop_pending_updates=True)
     offset = 0
     while True:
