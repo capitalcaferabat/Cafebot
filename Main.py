@@ -1,4 +1,4 @@
-import re
+ import re
 import logging
 import asyncio
 from datetime import datetime
@@ -6,7 +6,7 @@ import httpx
 
 # --- الإعدادات النهائية (رابطك الأخير) ---
 TELEGRAM_TOKEN = "8623634734:AAH4SvIMsKnVsWQK6fE-vebQMscCgJa3ca4"
-APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzEWmq1zQLlhzhicODnERhf_PnQFa_7acG_7EJawyexoFYfd6BgGdrU1TWAnejIesWBmg/exec"
+APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzc1hDnNFB7jz15veeqr8sQJFoCgVkYPqLPGxLffX_MbPMmcfnAaSIz8xDbMi7jpN_qZw/exec"
 ALLOWED_IDS = [934460174, 5212989843]
 
 logging.basicConfig(level=logging.INFO)
@@ -26,6 +26,7 @@ async def send(chat_id, text):
 
 async def save(rows):
     try:
+        # التوجيه (follow_redirects) ضروري لروابط جوجل
         async with httpx.AsyncClient(timeout=30, follow_redirects=True) as c:
             r = await c.post(APPS_SCRIPT_URL, json={"rows": rows})
             return "ok" in r.text.lower()
@@ -67,11 +68,12 @@ async def handle(update):
     date = extract_date(text)
     time_str = datetime.now().strftime("%H:%M")
     
-    # تنسيق الشهر/السنة للعمود الأخير
+    # تنسيق الشهر/السنة للعمود الأخير (G)
     d_parts = date.split('/')
     m_year = f"{d_parts[1]}/{d_parts[2]}" if len(d_parts) == 3 else datetime.now().strftime("%m/%Y")
 
-    # الترتيب: [التاريخ، الوقت، المستخدم، المادة، النوع، المبلغ، الشهر]
+    # الترتيب النهائي للأعمدة السبعة:
+    # [A:التاريخ، B:الوقت، C:المستخدم، D:المادة، E:النوع، F:المبلغ، G:الشهر]
     rows = [[date, time_str, uname, i["name"], "إيراد" if i["type"]=="income" else "مصروف", i["amount"], m_year] for i in items]
     
     ok = await save(rows)
