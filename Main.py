@@ -6,6 +6,7 @@ import httpx
 
 # --- الإعدادات النهائية ---
 TELEGRAM_TOKEN = "8623634734:AAH4SvIMsKnVsWQK6fE-vebQMscCgJa3ca4"
+# تأكد من استخدام الرابط الجديد بعد تحديث Google Apps Script
 APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzc1hDnNFB7jz15veeqr8sQJFoCgVkYPqLPGxLffX_MbPMmcfnAaSIz8xDbMi7jpN_qZw/exec"
 ALLOWED_IDS = [934460174, 5212989843]
 
@@ -67,34 +68,36 @@ async def handle(update):
     date = extract_date(text)
     time_str = datetime.now().strftime("%H:%M")
     
-    # تنسيق الشهر/السنة للعمود الأخير (G)
+    # تنسيق الشهر/السنة للعمود G
     d_parts = date.split('/')
     m_year = f"{d_parts[1]}/{d_parts[2]}" if len(d_parts) == 3 else datetime.now().strftime("%m/%Y")
 
-    # الترتيب: [التاريخ، الوقت، المستخدم، المادة، النوع، المبلغ، الشهر]
+    # إعداد البيانات للشيت
     rows = [[date, time_str, uname, i["name"], "إيراد" if i["type"]=="income" else "مصروف", i["amount"], m_year] for i in items]
     
     ok = await save(rows)
     
-    # حساب المجاميع للرسالة
+    # --- حساب المجاميع للرسالة ---
     inc_total = sum(i["amount"] for i in items if i["type"]=="income")
     exp_total = sum(i["amount"] for i in items if i["type"]=="expense")
+    balance = inc_total - exp_total
 
     reply = f"📅 <b>{date}</b> — {uname}\n"
-    reply += f"\n{'✅ تم الحفظ في الجدول' if ok else '❌ فشل في الاتصال بالجدول'}\n"
+    reply += f"\n{'✅ تم الحفظ بنجاح' if ok else '❌ فشل في التسجيل'}\n"
     reply += "────────────────────\n"
     for i in items:
         icon = "💰" if i["type"] == "income" else "💸"
         reply += f"{icon} {i['name']}: <b>{i['amount']:,} DH</b>\n"
     reply += "────────────────────\n"
+    # إضافة الأسطر المطلوبة:
     reply += f"🟢 إجمالي الإيرادات: <b>{inc_total:,} DH</b>\n"
     reply += f"🔴 إجمالي المصاريف: <b>{exp_total:,} DH</b>\n"
-    reply += f"⚖️ صافي الربح: <b>{inc_total - exp_total:,} DH</b>"
+    reply += f"⚖️ صافي الربح: <b>{balance:,} DH</b>"
     
     await send(chat_id, reply)
 
 async def main():
-    log.info("🚀 Bot is running...")
+    log.info("🚀 Bot is live...")
     await tg("deleteWebhook", drop_pending_updates=True)
     offset = 0
     while True:
